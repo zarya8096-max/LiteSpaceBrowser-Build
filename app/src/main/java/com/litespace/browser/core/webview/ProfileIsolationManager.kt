@@ -158,9 +158,9 @@ class ProfileIsolationManager(
     }
 
     suspend fun buildLocalStorageRestoreScript(profileId: String, currentUrl: String): String? =
-        withContext(Dispatchers.IO) {
+        withContext<String?>(Dispatchers.IO) {
             if (profileId == "incognito") return@withContext null
-            val host = runCatching { Uri.parse(currentUrl).host?.lowercase() }.getOrNull() ?: return@withContext
+            val host = runCatching { Uri.parse(currentUrl).host?.lowercase() }.getOrNull() ?: return@withContext null
             val entry = cookieVaultDao.getVaultEntry("$profileId::$host") ?: return@withContext null
             if (entry.localStorageJson.isBlank() || entry.localStorageJson == "{}") return@withContext null
 

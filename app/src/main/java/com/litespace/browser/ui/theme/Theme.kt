@@ -431,7 +431,7 @@ fun LiteSpacePullToRefreshBox(
                 source: NestedScrollSource
             ): Offset {
                 if (!enabled) return Offset.Zero
-                if (source == NestedScrollSource.UserInput && available.y > 0f && consumed.y == 0f) {
+                if (source == NestedScrollSource.Drag && available.y > 0f && consumed.y == 0f) {
                     pullOffsetPx = (pullOffsetPx + available.y * 0.45f).coerceAtMost(280f)
                     return Offset(0f, available.y * 0.45f)
                 }
