@@ -34,7 +34,7 @@ jobs:
           chmod +x gradlew || true
           gradle wrapper --gradle-version 8.9 --distribution-type bin
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleDebug --no-daemon --info
 
       - name: Prepare Artifact
         run: |
