@@ -1,0 +1,24 @@
+:root { color-scheme: dark !important; }
+html, body {
+    background-color: #10141C !important;
+    color: #E4E6EB !important;
+}
+body, main, article, section, div, header, footer, nav, aside, table, tr, td, th, ul, ol, li, p, span {
+    background-color: transparent;
+    color: inherit;
+    border-color: #262E3D !important;
+}
+a { color: #8AB4F8 !important; }
+a:visited { color: #CE93D8 !important; }
+input, textarea, select, button {
+    background-color: #1B2230 !important;
+    color: #F1F5F9 !important;
+    border: 1px solid #334155 !important;
+}
+pre, code {
+    background-color: #161C28 !important;
+    color: #93C5FD !important;
+}
+img, video, canvas, svg, picture, iframe {
+    filter: brightness(0.92) contrast(1.04) !important;
+}
