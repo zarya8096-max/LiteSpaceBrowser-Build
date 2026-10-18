@@ -12,6 +12,7 @@ import com.litespace.browser.data.local.dao.LiteAppDao
 import com.litespace.browser.data.local.entity.BookmarkEntity
 import com.litespace.browser.data.local.entity.ContentFilterRuleEntity
 import com.litespace.browser.data.local.entity.CookieVaultEntity
+import com.litespace.browser.data.local.entity.HistoryEntity
 import com.litespace.browser.data.local.entity.LiteAppEntity
 import com.litespace.browser.domain.model.CatalogTemplates
 import com.litespace.browser.domain.model.LiteAppConfig
@@ -26,9 +27,10 @@ import java.util.UUID
         LiteAppEntity::class,
         ContentFilterRuleEntity::class,
         CookieVaultEntity::class,
-        BookmarkEntity::class
+        BookmarkEntity::class,
+        HistoryEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class LiteSpaceDatabase : RoomDatabase() {

@@ -65,6 +65,14 @@ enum class PermissionSetting(val labelEn: String, val labelFa: String) {
 }
 
 @Serializable
+enum class SearchEnginePreset(val labelEn: String, val labelFa: String, val queryUrlPrefix: String) {
+    DUCKDUCKGO("DuckDuckGo (Private)", "داک‌داک‌گو (خصوصی)", "https://duckduckgo.com/?q="),
+    GOOGLE("Google Search", "جستجوی گوگل", "https://www.google.com/search?q="),
+    BRAVE("Brave Search", "موتور جستجوی بریو", "https://search.brave.com/search?q="),
+    STARTPAGE("Startpage", "استارت‌پیج", "https://www.startpage.com/do/dsearch?query=")
+}
+
+@Serializable
 enum class AppThemeMode(val labelEn: String, val labelFa: String) {
     SYSTEM("Follow System", "پیروی از سیستم"),
     LIGHT("Light Theme", "پوسته روشن"),
@@ -161,10 +169,20 @@ data class BookmarkItem(
 )
 
 @Serializable
+data class HistoryItem(
+    val id: Long = 0L,
+    val liteAppId: Long,
+    val title: String,
+    val url: String,
+    val visitedAt: Long = System.currentTimeMillis()
+)
+
+@Serializable
 data class GlobalAppSettings(
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val dynamicColorEnabled: Boolean = true,
     val languageCode: String = "en",
+    val searchEngine: SearchEnginePreset = SearchEnginePreset.DUCKDUCKGO,
     val globalAdBlockEnabled: Boolean = true,
     val globalHttpsOnly: Boolean = true,
     val globalBlockThirdPartyCookies: Boolean = true,
@@ -176,7 +194,7 @@ data class GlobalAppSettings(
 
 @Serializable
 data class LiteSpaceBackupPayload(
-    val schemaVersion: Int = 1,
+    val schemaVersion: Int = 2,
     val exportedAtEpochMs: Long = System.currentTimeMillis(),
     val globalSettings: GlobalAppSettings,
     val liteApps: List<LiteAppConfig>,
@@ -193,4 +211,14 @@ data class CatalogTemplate(
     val feedUrl: String = "",
     val descriptionEn: String,
     val descriptionFa: String
+)
+
+data class BuiltInUserExtension(
+    val id: String,
+    val titleEn: String,
+    val titleFa: String,
+    val descriptionEn: String,
+    val descriptionFa: String,
+    val cssSnippet: String = "",
+    val jsSnippet: String = ""
 )

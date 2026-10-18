@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.litespace.browser.domain.model.AppThemeMode
 import com.litespace.browser.domain.model.GlobalAppSettings
+import com.litespace.browser.domain.model.SearchEnginePreset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -23,6 +24,7 @@ class GlobalPreferencesRepository(private val context: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val LANGUAGE_CODE = stringPreferencesKey("language_code")
+        val SEARCH_ENGINE = stringPreferencesKey("search_engine")
         val GLOBAL_AD_BLOCK = booleanPreferencesKey("global_ad_block")
         val GLOBAL_HTTPS_ONLY = booleanPreferencesKey("global_https_only")
         val GLOBAL_BLOCK_3P_COOKIES = booleanPreferencesKey("global_block_3p_cookies")
@@ -40,6 +42,9 @@ class GlobalPreferencesRepository(private val context: Context) {
             }.getOrDefault(AppThemeMode.SYSTEM),
             dynamicColorEnabled = prefs[Keys.DYNAMIC_COLOR] ?: true,
             languageCode = prefs[Keys.LANGUAGE_CODE] ?: "en",
+            searchEngine = runCatching {
+                SearchEnginePreset.valueOf(prefs[Keys.SEARCH_ENGINE] ?: SearchEnginePreset.DUCKDUCKGO.name)
+            }.getOrDefault(SearchEnginePreset.DUCKDUCKGO),
             globalAdBlockEnabled = prefs[Keys.GLOBAL_AD_BLOCK] ?: true,
             globalHttpsOnly = prefs[Keys.GLOBAL_HTTPS_ONLY] ?: true,
             globalBlockThirdPartyCookies = prefs[Keys.GLOBAL_BLOCK_3P_COOKIES] ?: true,
@@ -66,6 +71,10 @@ class GlobalPreferencesRepository(private val context: Context) {
 
     suspend fun updateDynamicColor(enabled: Boolean) {
         context.dataStore.edit { it[Keys.DYNAMIC_COLOR] = enabled }
+    }
+
+    suspend fun updateSearchEngine(engine: SearchEnginePreset) {
+        context.dataStore.edit { it[Keys.SEARCH_ENGINE] = engine.name }
     }
 
     suspend fun updateLanguage(languageCode: String) {
@@ -115,6 +124,7 @@ class GlobalPreferencesRepository(private val context: Context) {
             prefs[Keys.THEME_MODE] = settings.themeMode.name
             prefs[Keys.DYNAMIC_COLOR] = settings.dynamicColorEnabled
             prefs[Keys.LANGUAGE_CODE] = settings.languageCode
+            prefs[Keys.SEARCH_ENGINE] = settings.searchEngine.name
             prefs[Keys.GLOBAL_AD_BLOCK] = settings.globalAdBlockEnabled
             prefs[Keys.GLOBAL_HTTPS_ONLY] = settings.globalHttpsOnly
             prefs[Keys.GLOBAL_BLOCK_3P_COOKIES] = settings.globalBlockThirdPartyCookies

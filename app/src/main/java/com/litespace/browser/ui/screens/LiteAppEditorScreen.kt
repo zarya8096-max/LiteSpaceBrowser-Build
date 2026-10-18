@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,8 +29,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -55,13 +58,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.litespace.browser.R
+import com.litespace.browser.data.repository.LiteAppRepository
+import com.litespace.browser.domain.model.CatalogTemplates
 import com.litespace.browser.domain.model.DisplayMode
 import com.litespace.browser.domain.model.LiteAppCategory
 import com.litespace.browser.domain.model.LiteAppConfig
@@ -74,8 +81,8 @@ import com.litespace.browser.ui.theme.LiteAppSquircleIcon
 import com.litespace.browser.ui.theme.parseHexColorSafely
 
 private val PresetColors = listOf(
-    "#0B57D0", "#00897B", "#2E7D32", "#C62828",
-    "#6A1B9A", "#E65100", "#00838F", "#283593",
+    "#0B57D0", "#00897B", "#2E7D32", "#E6123D",
+    "#6A1B9A", "#E65100", "#0088CC", "#283593",
     "#AD1457", "#4527A0", "#0277BD", "#37474F"
 )
 
@@ -91,58 +98,66 @@ fun LiteAppEditorScreen(
 ) {
     val context = LocalContext.current
 
-    var name by remember { mutableStateOf(initialConfig.name) }
-    var startUrl by remember { mutableStateOf(initialConfig.startUrl) }
-    var category by remember { mutableStateOf(initialConfig.category) }
-    var iconText by remember { mutableStateOf(initialConfig.iconText) }
-    var iconColorHex by remember { mutableStateOf(initialConfig.iconColorHex) }
-    var customIconUri by remember { mutableStateOf(initialConfig.customIconUri) }
-    var profileId by remember { mutableStateOf(initialConfig.profileId) }
+    var name by remember(initialConfig.uuid) { mutableStateOf(initialConfig.name) }
+    var startUrl by remember(initialConfig.uuid) {
+        mutableStateOf(
+            if (initialConfig.startUrl == "https://" || initialConfig.startUrl == "http://") ""
+            else initialConfig.startUrl
+        )
+    }
+    var category by remember(initialConfig.uuid) { mutableStateOf(initialConfig.category) }
+    var iconText by remember(initialConfig.uuid) { mutableStateOf(initialConfig.iconText) }
+    var userEditedMonogram by remember(initialConfig.uuid) { mutableStateOf(initialConfig.id != 0L) }
+    var iconColorHex by remember(initialConfig.uuid) { mutableStateOf(initialConfig.iconColorHex) }
+    var customIconUri by remember(initialConfig.uuid) { mutableStateOf(initialConfig.customIconUri) }
+    var profileId by remember(initialConfig.uuid) { mutableStateOf(initialConfig.profileId) }
 
-    var displayMode by remember { mutableStateOf(initialConfig.displayMode) }
-    var orientationMode by remember { mutableStateOf(initialConfig.orientationMode) }
-    var forceDarkWeb by remember { mutableStateOf(initialConfig.forceDarkWeb) }
-    var pullToRefresh by remember { mutableStateOf(initialConfig.pullToRefreshEnabled) }
-    var navGestures by remember { mutableStateOf(initialConfig.navigationGesturesEnabled) }
-    var showBottomBar by remember { mutableStateOf(initialConfig.showBottomBar) }
+    var displayMode by remember(initialConfig.uuid) { mutableStateOf(initialConfig.displayMode) }
+    var orientationMode by remember(initialConfig.uuid) { mutableStateOf(initialConfig.orientationMode) }
+    var forceDarkWeb by remember(initialConfig.uuid) { mutableStateOf(initialConfig.forceDarkWeb) }
+    var pullToRefresh by remember(initialConfig.uuid) { mutableStateOf(initialConfig.pullToRefreshEnabled) }
+    var navGestures by remember(initialConfig.uuid) { mutableStateOf(initialConfig.navigationGesturesEnabled) }
+    var showBottomBar by remember(initialConfig.uuid) { mutableStateOf(initialConfig.showBottomBar) }
 
-    var jsEnabled by remember { mutableStateOf(initialConfig.javaScriptEnabled) }
-    var domStorageEnabled by remember { mutableStateOf(initialConfig.domStorageEnabled) }
-    var desktopMode by remember { mutableStateOf(initialConfig.desktopMode) }
-    var userAgentPreset by remember { mutableStateOf(initialConfig.userAgentPreset) }
-    var customUserAgent by remember { mutableStateOf(initialConfig.customUserAgent) }
-    var textZoom by remember { mutableFloatStateOf(initialConfig.textZoomPercent.toFloat()) }
-    var pageZoom by remember { mutableFloatStateOf(initialConfig.defaultPageZoomPercent.toFloat()) }
-    var enableZoomControls by remember { mutableStateOf(initialConfig.enableZoomControls) }
+    var jsEnabled by remember(initialConfig.uuid) { mutableStateOf(initialConfig.javaScriptEnabled) }
+    var domStorageEnabled by remember(initialConfig.uuid) { mutableStateOf(initialConfig.domStorageEnabled) }
+    var desktopMode by remember(initialConfig.uuid) { mutableStateOf(initialConfig.desktopMode) }
+    var userAgentPreset by remember(initialConfig.uuid) { mutableStateOf(initialConfig.userAgentPreset) }
+    var customUserAgent by remember(initialConfig.uuid) { mutableStateOf(initialConfig.customUserAgent) }
+    var textZoom by remember(initialConfig.uuid) { mutableFloatStateOf(initialConfig.textZoomPercent.toFloat()) }
+    var pageZoom by remember(initialConfig.uuid) { mutableFloatStateOf(initialConfig.defaultPageZoomPercent.toFloat()) }
+    var enableZoomControls by remember(initialConfig.uuid) { mutableStateOf(initialConfig.enableZoomControls) }
 
-    var customCss by remember { mutableStateOf(initialConfig.customCss) }
-    var customJs by remember { mutableStateOf(initialConfig.customJs) }
-    var injectAtStart by remember { mutableStateOf(initialConfig.injectAtDocumentStart) }
+    var customCss by remember(initialConfig.uuid) { mutableStateOf(initialConfig.customCss) }
+    var customJs by remember(initialConfig.uuid) { mutableStateOf(initialConfig.customJs) }
+    var injectAtStart by remember(initialConfig.uuid) { mutableStateOf(initialConfig.injectAtDocumentStart) }
 
-    var adBlockEnabled by remember { mutableStateOf(initialConfig.adBlockEnabled) }
-    var blockThirdPartyCookies by remember { mutableStateOf(initialConfig.blockThirdPartyCookies) }
-    var acceptCookies by remember { mutableStateOf(initialConfig.acceptCookies) }
-    var httpsUpgrade by remember { mutableStateOf(initialConfig.httpsUpgradeEnabled) }
-    var clearCacheOnExit by remember { mutableStateOf(initialConfig.clearCacheOnExit) }
-    var clearCookiesOnExit by remember { mutableStateOf(initialConfig.clearCookiesOnExit) }
-    var clearStorageOnExit by remember { mutableStateOf(initialConfig.clearStorageOnExit) }
-    var openExternalInBrowser by remember { mutableStateOf(initialConfig.openExternalLinksInBrowser) }
-    var popupPolicy by remember { mutableStateOf(initialConfig.popupPolicy) }
-    var biometricLock by remember { mutableStateOf(initialConfig.biometricLockEnabled) }
+    var adBlockEnabled by remember(initialConfig.uuid) { mutableStateOf(initialConfig.adBlockEnabled) }
+    var blockThirdPartyCookies by remember(initialConfig.uuid) { mutableStateOf(initialConfig.blockThirdPartyCookies) }
+    var acceptCookies by remember(initialConfig.uuid) { mutableStateOf(initialConfig.acceptCookies) }
+    var httpsUpgrade by remember(initialConfig.uuid) { mutableStateOf(initialConfig.httpsUpgradeEnabled) }
+    var clearCacheOnExit by remember(initialConfig.uuid) { mutableStateOf(initialConfig.clearCacheOnExit) }
+    var clearCookiesOnExit by remember(initialConfig.uuid) { mutableStateOf(initialConfig.clearCookiesOnExit) }
+    var clearStorageOnExit by remember(initialConfig.uuid) { mutableStateOf(initialConfig.clearStorageOnExit) }
+    var openExternalInBrowser by remember(initialConfig.uuid) { mutableStateOf(initialConfig.openExternalLinksInBrowser) }
+    var popupPolicy by remember(initialConfig.uuid) { mutableStateOf(initialConfig.popupPolicy) }
+    var biometricLock by remember(initialConfig.uuid) { mutableStateOf(initialConfig.biometricLockEnabled) }
 
-    var allowGeolocation by remember { mutableStateOf(initialConfig.allowGeolocation) }
-    var allowCamera by remember { mutableStateOf(initialConfig.allowCamera) }
-    var allowMicrophone by remember { mutableStateOf(initialConfig.allowMicrophone) }
-    var allowWebNotifications by remember { mutableStateOf(initialConfig.allowWebNotifications) }
+    var allowGeolocation by remember(initialConfig.uuid) { mutableStateOf(initialConfig.allowGeolocation) }
+    var allowCamera by remember(initialConfig.uuid) { mutableStateOf(initialConfig.allowCamera) }
+    var allowMicrophone by remember(initialConfig.uuid) { mutableStateOf(initialConfig.allowMicrophone) }
+    var allowWebNotifications by remember(initialConfig.uuid) { mutableStateOf(initialConfig.allowWebNotifications) }
 
-    var feedMonitorUrl by remember { mutableStateOf(initialConfig.feedMonitorUrl) }
-    var feedIntervalMinutes by remember { mutableIntStateOf(initialConfig.feedCheckIntervalMinutes) }
+    var feedMonitorUrl by remember(initialConfig.uuid) { mutableStateOf(initialConfig.feedMonitorUrl) }
+    var feedIntervalMinutes by remember(initialConfig.uuid) { mutableIntStateOf(initialConfig.feedCheckIntervalMinutes) }
 
     var activeSectionIndex by remember { mutableIntStateOf(0) }
-    val sectionTitles = if (isPersian) {
-        listOf("۱. هویت و آیکون", "۲. نمایش و پوسته", "۳. موتور وب‌ویو", "۴. اسکریپت CSS/JS", "۵. حریم خصوصی", "۶. اعلان و خوراک")
-    } else {
-        listOf("1. Identity & Icon", "2. Display & Theme", "3. WebView Engine", "4. Custom CSS/JS", "5. Privacy & Lock", "6. Notifications")
+    val sectionTitles = remember(isPersian) {
+        if (isPersian) {
+            listOf("۱. هویت و آیکون", "۲. نمایش و پوسته", "۳. موتور وب‌ویو", "۴. اسکریپت CSS/JS", "۵. حریم خصوصی", "۶. اعلان و خوراک")
+        } else {
+            listOf("1. Identity & Icon", "2. Display & Theme", "3. WebView Engine", "4. Custom CSS/JS", "5. Privacy & Lock", "6. Notifications")
+        }
     }
 
     val iconPickerLauncher = rememberLauncherForActivityResult(
@@ -159,6 +174,67 @@ fun LiteAppEditorScreen(
         }
     }
 
+    val commitSave = {
+        val rawUrl = startUrl.trim()
+        val resolvedUrl = if (rawUrl.isNotBlank()) {
+            LiteAppRepository.normalizeUrl(rawUrl)
+        } else if (name.trim().isNotBlank()) {
+            LiteAppRepository.normalizeUrl(name.trim())
+        } else {
+            "https://duckduckgo.com"
+        }
+        val resolvedName = name.trim().ifBlank {
+            LiteAppRepository.extractHostLabel(resolvedUrl)
+        }
+        val resolvedIconText = iconText.trim().take(2).uppercase().ifBlank {
+            resolvedName.filter { it.isLetterOrDigit() }.take(2).uppercase().ifBlank { "LA" }
+        }
+        val updated = initialConfig.copy(
+            name = resolvedName,
+            startUrl = resolvedUrl,
+            category = category,
+            iconText = resolvedIconText,
+            iconColorHex = iconColorHex,
+            customIconUri = customIconUri,
+            themeColorHex = iconColorHex,
+            profileId = profileId.trim().ifBlank { "default" },
+            displayMode = displayMode,
+            orientationMode = orientationMode,
+            forceDarkWeb = forceDarkWeb,
+            pullToRefreshEnabled = pullToRefresh,
+            navigationGesturesEnabled = navGestures,
+            showBottomBar = showBottomBar,
+            javaScriptEnabled = jsEnabled,
+            domStorageEnabled = domStorageEnabled,
+            desktopMode = desktopMode,
+            userAgentPreset = userAgentPreset,
+            customUserAgent = customUserAgent.trim(),
+            textZoomPercent = textZoom.toInt(),
+            defaultPageZoomPercent = pageZoom.toInt(),
+            enableZoomControls = enableZoomControls,
+            customCss = customCss,
+            customJs = customJs,
+            injectAtDocumentStart = injectAtStart,
+            adBlockEnabled = adBlockEnabled,
+            blockThirdPartyCookies = blockThirdPartyCookies,
+            acceptCookies = acceptCookies,
+            httpsUpgradeEnabled = httpsUpgrade,
+            clearCacheOnExit = clearCacheOnExit,
+            clearCookiesOnExit = clearCookiesOnExit,
+            clearStorageOnExit = clearStorageOnExit,
+            openExternalLinksInBrowser = openExternalInBrowser,
+            popupPolicy = popupPolicy,
+            biometricLockEnabled = biometricLock,
+            allowGeolocation = allowGeolocation,
+            allowCamera = allowCamera,
+            allowMicrophone = allowMicrophone,
+            allowWebNotifications = allowWebNotifications,
+            feedMonitorUrl = feedMonitorUrl.trim(),
+            feedCheckIntervalMinutes = feedIntervalMinutes
+        )
+        onSave(updated)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -169,7 +245,7 @@ fun LiteAppEditorScreen(
                         } else {
                             stringResource(R.string.editor_edit_title)
                         },
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.ExtraBold
                     )
                 },
                 navigationIcon = {
@@ -179,57 +255,12 @@ fun LiteAppEditorScreen(
                 },
                 actions = {
                     Button(
-                        onClick = {
-                            val updated = initialConfig.copy(
-                                name = name.trim().ifBlank { "Lite App" },
-                                startUrl = startUrl.trim().ifBlank { "https://example.com" },
-                                category = category,
-                                iconText = iconText.trim().take(2).uppercase().ifBlank { "LA" },
-                                iconColorHex = iconColorHex,
-                                customIconUri = customIconUri,
-                                themeColorHex = iconColorHex,
-                                profileId = profileId.trim().ifBlank { "default" },
-                                displayMode = displayMode,
-                                orientationMode = orientationMode,
-                                forceDarkWeb = forceDarkWeb,
-                                pullToRefreshEnabled = pullToRefresh,
-                                navigationGesturesEnabled = navGestures,
-                                showBottomBar = showBottomBar,
-                                javaScriptEnabled = jsEnabled,
-                                domStorageEnabled = domStorageEnabled,
-                                desktopMode = desktopMode,
-                                userAgentPreset = userAgentPreset,
-                                customUserAgent = customUserAgent.trim(),
-                                textZoomPercent = textZoom.toInt(),
-                                defaultPageZoomPercent = pageZoom.toInt(),
-                                enableZoomControls = enableZoomControls,
-                                customCss = customCss,
-                                customJs = customJs,
-                                injectAtDocumentStart = injectAtStart,
-                                adBlockEnabled = adBlockEnabled,
-                                blockThirdPartyCookies = blockThirdPartyCookies,
-                                acceptCookies = acceptCookies,
-                                httpsUpgradeEnabled = httpsUpgrade,
-                                clearCacheOnExit = clearCacheOnExit,
-                                clearCookiesOnExit = clearCookiesOnExit,
-                                clearStorageOnExit = clearStorageOnExit,
-                                openExternalLinksInBrowser = openExternalInBrowser,
-                                popupPolicy = popupPolicy,
-                                biometricLockEnabled = biometricLock,
-                                allowGeolocation = allowGeolocation,
-                                allowCamera = allowCamera,
-                                allowMicrophone = allowMicrophone,
-                                allowWebNotifications = allowWebNotifications,
-                                feedMonitorUrl = feedMonitorUrl.trim(),
-                                feedCheckIntervalMinutes = feedIntervalMinutes
-                            )
-                            onSave(updated)
-                        },
+                        onClick = commitSave,
                         modifier = Modifier.padding(end = 12.dp)
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null)
                         Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.save_lite_app))
+                        Text(stringResource(R.string.save_lite_app), fontWeight = FontWeight.Bold)
                     }
                 }
             )
@@ -243,50 +274,123 @@ fun LiteAppEditorScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Live Interactive Phone Header & Squircle Preview Card
+            val previewBrandColor = parseHexColorSafely(iconColorHex)
             Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                ),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    LiteAppSquircleIcon(
-                        iconText = iconText.ifBlank { name.take(2).uppercase() },
-                        colorHex = iconColorHex,
-                        customIconUri = customIconUri,
-                        size = 60.dp
-                    )
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = name.ifBlank { if (isPersian) "پیش‌نمایش لایت‌اپ" else "Live Lite App Preview" },
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.ExtraBold
+                Column {
+                    // Simulated Mini Browser Top Bar Preview
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(previewBrandColor, previewBrandColor.copy(alpha = 0.78f))
+                                )
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isPersian) "پیش‌نمایش نوار وضعیت اختصاصی لایت‌اپ" else "Live Standalone Window TopBar Preview",
+                                color = Color.White.copy(alpha = 0.9f),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            Text(
+                                text = iconColorHex.uppercase(),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LiteAppSquircleIcon(
+                            iconText = iconText.ifBlank { name.take(2).uppercase() },
+                            colorHex = iconColorHex,
+                            customIconUri = customIconUri,
+                            size = 62.dp
                         )
-                        Text(
-                            text = startUrl.ifBlank { "https://example.com" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = name.ifBlank { if (isPersian) "نام لایت‌اپ جدید" else "New Lite App" },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = startUrl.ifBlank { "https://example.com" },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FeatureMicroChip(label = profileId)
+                                FeatureMicroChip(
+                                    label = if (isPersian) displayMode.labelFa else displayMode.labelEn,
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 1-Tap Quick-Fill Presets (for instant app creation without typing)
+            if (initialConfig.id == 0L) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            FeatureMicroChip(label = profileId)
-                            FeatureMicroChip(
-                                label = if (isPersian) displayMode.labelFa else displayMode.labelEn,
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = if (isPersian) "پر کردن سریع با یک لمس (الگوهای محبوب):" else "1-Tap Quick Auto-Fill Presets:",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(CatalogTemplates.builtInTemplates, key = { it.name }) { tpl ->
+                            AssistChip(
+                                onClick = {
+                                    name = tpl.name
+                                    startUrl = tpl.startUrl
+                                    category = tpl.category
+                                    iconText = tpl.iconText
+                                    iconColorHex = tpl.iconColorHex
+                                    feedMonitorUrl = tpl.feedUrl
+                                    userEditedMonogram = true
+                                },
+                                label = { Text(tpl.name, fontWeight = FontWeight.SemiBold) }
                             )
                         }
                     }
                 }
             }
 
+            // Section Selector Tabs
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 itemsIndexed(sectionTitles) { index, label ->
                     FilterChip(
@@ -302,20 +406,36 @@ fun LiteAppEditorScreen(
                     0 -> EditorSectionCard(title = sectionTitles[0]) {
                         OutlinedTextField(
                             value = name,
-                            onValueChange = {
-                                name = it
-                                if (iconText.isBlank() || iconText == "LA") {
-                                    iconText = it.trim().take(2).uppercase()
+                            onValueChange = { newName ->
+                                name = newName
+                                if (!userEditedMonogram) {
+                                    val letters = newName.trim().filter { it.isLetterOrDigit() }.take(2).uppercase()
+                                    iconText = letters.ifBlank { "LA" }
                                 }
                             },
                             label = { Text(stringResource(R.string.field_app_name)) },
+                            placeholder = { Text(if (isPersian) "مثلاً: دیجی‌کالا، دیوار، گیت‌هاب" else "e.g. GitHub, Wikipedia, Digikala") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
                         OutlinedTextField(
                             value = startUrl,
-                            onValueChange = { startUrl = it },
+                            onValueChange = { newUrl ->
+                                startUrl = newUrl
+                                if (name.isBlank() && newUrl.contains(".")) {
+                                    val hostGuess = LiteAppRepository.extractHostLabel(
+                                        LiteAppRepository.normalizeUrl(newUrl)
+                                    )
+                                    if (hostGuess != "Lite App") {
+                                        name = hostGuess
+                                        if (!userEditedMonogram) {
+                                            iconText = hostGuess.take(2).uppercase()
+                                        }
+                                    }
+                                }
+                            },
                             label = { Text(stringResource(R.string.field_app_url)) },
+                            placeholder = { Text("https://digikala.com") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -325,17 +445,22 @@ fun LiteAppEditorScreen(
                         ) {
                             OutlinedTextField(
                                 value = iconText,
-                                onValueChange = { iconText = it.take(2).uppercase() },
+                                onValueChange = {
+                                    userEditedMonogram = true
+                                    iconText = it.take(2).uppercase()
+                                },
                                 label = { Text(if (isPersian) "حروف آیکون (۲ حرف)" else "Icon Monogram (2 chars)") },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
                             OutlinedButton(
-                                onClick = { iconPickerLauncher.launch(arrayOf("image/*")) }
+                                onClick = {
+                                    runCatching { iconPickerLauncher.launch(arrayOf("image/*")) }
+                                }
                             ) {
                                 Icon(Icons.Default.Image, contentDescription = null)
                                 Spacer(Modifier.width(6.dp))
-                                Text(if (isPersian) "آیکون از گالری" else "Custom Icon")
+                                Text(if (isPersian) "آیکون گالری" else "Custom Icon")
                             }
                             if (!customIconUri.isNullOrBlank()) {
                                 OutlinedButton(onClick = { customIconUri = null }) {
@@ -356,12 +481,12 @@ fun LiteAppEditorScreen(
                                 val selected = iconColorHex.equals(hex, ignoreCase = true)
                                 Box(
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(38.dp)
                                         .clip(CircleShape)
                                         .background(parseHexColorSafely(hex))
                                         .border(
-                                            width = if (selected) 3.dp else 0.dp,
-                                            color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                                            width = if (selected) 3.dp else 1.dp,
+                                            color = if (selected) MaterialTheme.colorScheme.onSurface else Color.White.copy(alpha = 0.25f),
                                             shape = CircleShape
                                         )
                                         .clickable { iconColorHex = hex }
@@ -517,6 +642,27 @@ fun LiteAppEditorScreen(
                     }
 
                     3 -> EditorSectionCard(title = stringResource(R.string.section_scripts)) {
+                        Text(
+                            text = if (isPersian) "افزونه‌های آماده (با یک لمس اضافه کنید):" else "1-Tap Built-in Extensions:",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CatalogTemplates.builtInExtensions.forEach { ext ->
+                                FilterChip(
+                                    selected = (ext.cssSnippet.isNotBlank() && customCss.contains(ext.cssSnippet)) ||
+                                        (ext.jsSnippet.isNotBlank() && customJs.contains(ext.jsSnippet)),
+                                    onClick = {
+                                        if (ext.cssSnippet.isNotBlank() && !customCss.contains(ext.cssSnippet)) {
+                                            customCss = (customCss + "\n" + ext.cssSnippet).trim()
+                                        }
+                                        if (ext.jsSnippet.isNotBlank() && !customJs.contains(ext.jsSnippet)) {
+                                            customJs = (customJs + "\n" + ext.jsSnippet).trim()
+                                        }
+                                    },
+                                    label = { Text(if (isPersian) ext.titleFa else ext.titleEn) }
+                                )
+                            }
+                        }
                         OutlinedTextField(
                             value = customCss,
                             onValueChange = { customCss = it },
@@ -669,7 +815,7 @@ private fun EditorSectionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp)
+        shape = RoundedCornerShape(22.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),

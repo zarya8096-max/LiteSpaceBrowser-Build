@@ -217,7 +217,7 @@ fun DashboardScreen(
                         )
                         Spacer(Modifier.height(8.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(favoriteApps, key = { "fav_${it.id}" }) { favApp ->
+                            items(favoriteApps, key = { "fav_${it.id}_${it.uuid}" }) { favApp ->
                                 Surface(
                                     onClick = { onLaunchApp(favApp, false) },
                                     shape = RoundedCornerShape(16.dp),
@@ -313,7 +313,7 @@ fun DashboardScreen(
                     }
                 }
             } else {
-                items(liteApps, key = { it.id }) { app ->
+                items(liteApps, key = { "app_${it.id}_${it.uuid}" }) { app ->
                     LiteAppCardItem(
                         app = app,
                         isPersian = isPersian,

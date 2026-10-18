@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.litespace.browser.domain.model.BookmarkItem
+import com.litespace.browser.domain.model.HistoryItem
 
 @Entity(
     tableName = "bookmarks",
@@ -34,4 +35,25 @@ data class BookmarkEntity(
             createdAt = item.createdAt
         )
     }
+}
+
+@Entity(
+    tableName = "browsing_history",
+    indices = [Index(value = ["liteAppId"]), Index(value = ["visitedAt"])]
+)
+data class HistoryEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+    val liteAppId: Long,
+    val title: String,
+    val url: String,
+    val visitedAt: Long = System.currentTimeMillis()
+) {
+    fun toDomain() = HistoryItem(
+        id = id,
+        liteAppId = liteAppId,
+        title = title,
+        url = url,
+        visitedAt = visitedAt
+    )
 }

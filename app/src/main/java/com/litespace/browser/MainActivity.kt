@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         requestPostNotificationsIfNeeded()
 
-        val sharedUrl = extractSharedUrl(intent)
+        extractSharedUrl(intent)?.let { viewModel.onSharedUrlReceived(it) }
 
         setContent {
             val settings by viewModel.globalSettings.collectAsState()
@@ -88,21 +88,24 @@ class MainActivity : AppCompatActivity() {
             val selectedCategory by viewModel.selectedCategory.collectAsState()
             val filterRules by viewModel.filterRules.collectAsState()
             val statusMessage by viewModel.statusBannerMessage.collectAsState()
+            val pendingSharedUrl by viewModel.pendingSharedUrl.collectAsState()
 
             val snackbarHostState = remember { SnackbarHostState() }
             val scope = rememberCoroutineScope()
 
             var activeTab by remember { mutableStateOf(MainTab.DASHBOARD) }
-            var editingConfig by remember {
-                mutableStateOf<LiteAppConfig?>(
-                    if (!sharedUrl.isNullOrBlank()) {
-                        LiteAppConfig(
-                            uuid = UUID.randomUUID().toString(),
-                            name = "Shared Web App",
-                            startUrl = sharedUrl
-                        )
-                    } else null
-                )
+            var editingConfig by remember { mutableStateOf<LiteAppConfig?>(null) }
+
+            LaunchedEffect(pendingSharedUrl) {
+                val incomingUrl = pendingSharedUrl
+                if (!incomingUrl.isNullOrBlank()) {
+                    editingConfig = LiteAppConfig(
+                        uuid = UUID.randomUUID().toString(),
+                        name = "Shared Web App",
+                        startUrl = incomingUrl
+                    )
+                    viewModel.consumeSharedUrl()
+                }
             }
 
             var isAppUnlocked by remember { mutableStateOf(false) }
@@ -249,7 +252,7 @@ class MainActivity : AppCompatActivity() {
                                         editingConfig = LiteAppConfig(
                                             uuid = UUID.randomUUID().toString(),
                                             name = "",
-                                            startUrl = initialUrl.ifBlank { "https://" }
+                                            startUrl = initialUrl.trim()
                                         )
                                     },
                                     onEditApp = { app -> editingConfig = app },
@@ -306,6 +309,7 @@ class MainActivity : AppCompatActivity() {
                                             LocaleListCompat.forLanguageTags(nextLang)
                                         )
                                     },
+                                    onSelectSearchEngine = viewModel::setSearchEngine,
                                     onToggleBiometricGlobal = viewModel::setBiometricGlobal,
                                     onUpdatePinCode = viewModel::updatePinCode
                                 )
@@ -315,6 +319,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        extractSharedUrl(intent)?.let { viewModel.onSharedUrlReceived(it) }
     }
 
     private fun requestPostNotificationsIfNeeded() {

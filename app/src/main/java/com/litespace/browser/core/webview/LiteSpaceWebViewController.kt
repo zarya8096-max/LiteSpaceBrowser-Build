@@ -34,6 +34,7 @@ class LiteSpaceWebViewController(
     private val contentBlockerEngine: ContentBlockerEngine,
     private val profileIsolationManager: ProfileIsolationManager,
     private val onPageStateChanged: (url: String, title: String, isLoading: Boolean, progress: Int, canGoBack: Boolean, canGoForward: Boolean) -> Unit,
+    private val onPageVisitedForHistory: (title: String, url: String) -> Unit = { _, _ -> },
     private val onBlockedRequestHit: (matchedPattern: String, blockedUrl: String) -> Unit,
     private val onShowFilePicker: (ValueCallback<Array<Uri>>, Array<String>) -> Boolean,
     private val onEnterFullscreenVideo: (View, WebChromeClient.CustomViewCallback) -> Unit,
@@ -108,8 +109,16 @@ class LiteSpaceWebViewController(
             }
         }
 
+        // Dual WebKit Dark Mode support: ALGORITHMIC_DARKENING (API 33+) + FORCE_DARK (API 29-32)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(webView.settings, config.forceDarkWeb)
+        }
+        @Suppress("DEPRECATION")
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+            WebSettingsCompat.setForceDark(
+                webView.settings,
+                if (config.forceDarkWeb) WebSettingsCompat.FORCE_DARK_ON else WebSettingsCompat.FORCE_DARK_OFF
+            )
         }
 
         webView.removeJavascriptInterface("LiteSpaceNotificationBridge")
@@ -211,9 +220,8 @@ class LiteSpaceWebViewController(
             val webView = view ?: return
             val cfg = currentConfig ?: return
 
-            if (cfg.defaultPageZoomPercent != 100) {
-                webView.setInitialScale(cfg.defaultPageZoomPercent)
-            }
+            // Reset to 0 (responsive viewport default) when defaultPageZoomPercent == 100
+            webView.setInitialScale(if (cfg.defaultPageZoomPercent == 100) 0 else cfg.defaultPageZoomPercent)
 
             if (cfg.javaScriptEnabled) {
                 injectAssetScript(webView, "scripts/notification_bridge.js")
@@ -249,13 +257,16 @@ class LiteSpaceWebViewController(
                 injectRawJavaScript(webView, cfg.customJs)
             }
 
-            if (!isIncognitoSession && !cfg.clearCookiesOnExit && !url.isNullOrBlank()) {
-                profileIsolationManager.captureWebViewProfileStateAsync(
-                    webView = webView,
-                    profileId = cfg.profileId,
-                    currentUrl = url,
-                    isIncognito = false
-                )
+            if (!isIncognitoSession && !url.isNullOrBlank()) {
+                if (!cfg.clearCookiesOnExit) {
+                    profileIsolationManager.captureWebViewProfileStateAsync(
+                        webView = webView,
+                        profileId = cfg.profileId,
+                        currentUrl = url,
+                        isIncognito = false
+                    )
+                }
+                onPageVisitedForHistory(webView.title.orEmpty(), url)
             }
 
             onPageStateChanged(

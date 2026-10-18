@@ -59,26 +59,36 @@ object ShortcutPinManager {
         customIconUri: String? = null,
         sizePx: Int = 192
     ): Bitmap {
-        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val safeSize = sizePx.coerceIn(48, 512)
+        val bitmap = Bitmap.createBitmap(safeSize, safeSize, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        val rect = RectF(0f, 0f, sizePx.toFloat(), sizePx.toFloat())
-        val cornerRadius = sizePx * 0.26f
+        val rect = RectF(0f, 0f, safeSize.toFloat(), safeSize.toFloat())
+        val cornerRadius = safeSize * 0.26f
 
         if (context != null && !customIconUri.isNullOrBlank()) {
             val customDecoded = runCatching {
+                val opts = BitmapFactory.Options().apply {
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                    inSampleSize = 2
+                }
                 context.contentResolver.openInputStream(Uri.parse(customIconUri))?.use { stream ->
-                    BitmapFactory.decodeStream(stream)
+                    BitmapFactory.decodeStream(stream, null, opts)
                 }
             }.getOrNull()
 
-            if (customDecoded != null) {
-                val shader = BitmapShader(customDecoded, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+            if (customDecoded != null && customDecoded.width > 0 && customDecoded.height > 0) {
+                val swBitmap = if (customDecoded.config == Bitmap.Config.ARGB_8888) {
+                    customDecoded
+                } else {
+                    customDecoded.copy(Bitmap.Config.ARGB_8888, false) ?: customDecoded
+                }
+                val shader = BitmapShader(swBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
                 val scale = maxOf(
-                    sizePx.toFloat() / customDecoded.width.coerceAtLeast(1),
-                    sizePx.toFloat() / customDecoded.height.coerceAtLeast(1)
+                    safeSize.toFloat() / swBitmap.width.coerceAtLeast(1),
+                    safeSize.toFloat() / swBitmap.height.coerceAtLeast(1)
                 )
-                val dx = (sizePx - customDecoded.width * scale) * 0.5f
-                val dy = (sizePx - customDecoded.height * scale) * 0.5f
+                val dx = (safeSize - swBitmap.width * scale) * 0.5f
+                val dy = (safeSize - swBitmap.height * scale) * 0.5f
                 val matrix = Matrix().apply {
                     setScale(scale, scale)
                     postTranslate(dx, dy)
@@ -112,7 +122,7 @@ object ShortcutPinManager {
 
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = LinearGradient(
-                0f, 0f, sizePx.toFloat(), sizePx.toFloat(),
+                0f, 0f, safeSize.toFloat(), safeSize.toFloat(),
                 lighterColor, darkerColor, Shader.TileMode.CLAMP
             )
             style = Paint.Style.FILL
@@ -120,13 +130,13 @@ object ShortcutPinManager {
         canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
 
         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(55, 255, 255, 255)
+            color = Color.argb(60, 255, 255, 255)
             style = Paint.Style.STROKE
-            strokeWidth = sizePx * 0.03f
+            strokeWidth = safeSize * 0.03f
         }
-        val inset = sizePx * 0.015f
+        val inset = safeSize * 0.015f
         canvas.drawRoundRect(
-            RectF(inset, inset, sizePx - inset, sizePx - inset),
+            RectF(inset, inset, safeSize - inset, safeSize - inset),
             cornerRadius,
             cornerRadius,
             strokePaint
@@ -134,16 +144,16 @@ object ShortcutPinManager {
 
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = sizePx * 0.38f
+            textSize = safeSize * 0.38f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
-            setShadowLayer(sizePx * 0.04f, 0f, sizePx * 0.02f, Color.argb(65, 0, 0, 0))
+            setShadowLayer(safeSize * 0.04f, 0f, safeSize * 0.02f, Color.argb(65, 0, 0, 0))
         }
 
         val label = iconText.trim().take(2).uppercase().ifBlank { "LA" }
         val fontMetrics = textPaint.fontMetrics
-        val baselineY = (sizePx / 2f) - (fontMetrics.ascent + fontMetrics.descent) / 2f
-        canvas.drawText(label, sizePx / 2f, baselineY, textPaint)
+        val baselineY = (safeSize / 2f) - (fontMetrics.ascent + fontMetrics.descent) / 2f
+        canvas.drawText(label, safeSize / 2f, baselineY, textPaint)
 
         return bitmap
     }

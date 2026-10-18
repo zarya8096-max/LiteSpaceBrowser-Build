@@ -11,10 +11,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
+import kotlin.coroutines.resume
 
 class ProfileIsolationManager(
     private val cookieVaultDao: CookieVaultDao,
@@ -23,6 +25,19 @@ class ProfileIsolationManager(
     private val json = Json { ignoreUnknownKeys = true }
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    private suspend fun removeAllCookiesSuspend(cookieManager: CookieManager): Boolean =
+        withContext(Dispatchers.Main) {
+            suspendCancellableCoroutine { cont ->
+                runCatching {
+                    cookieManager.removeAllCookies { removed ->
+                        if (cont.isActive) cont.resume(removed ?: false)
+                    }
+                }.onFailure {
+                    if (cont.isActive) cont.resume(false)
+                }
+            }
+        }
+
     suspend fun switchToProfile(
         targetProfileId: String,
         targetUrl: String,
@@ -30,8 +45,8 @@ class ProfileIsolationManager(
     ) = withContext(Dispatchers.IO) {
         val cookieManager = CookieManager.getInstance()
         if (isIncognito) {
+            removeAllCookiesSuspend(cookieManager)
             withContext(Dispatchers.Main) {
-                cookieManager.removeAllCookies(null)
                 cookieManager.flush()
             }
             return@withContext
@@ -39,9 +54,8 @@ class ProfileIsolationManager(
 
         val currentProfileId = preferencesRepository.getActiveProfileId()
         if (currentProfileId != targetProfileId) {
-            withContext(Dispatchers.Main) {
-                cookieManager.removeAllCookies(null)
-            }
+            // Deterministically await cookie removal completion before restoring target profile cookies
+            removeAllCookiesSuspend(cookieManager)
             val savedEntries = cookieVaultDao.getVaultEntriesForProfile(targetProfileId)
             withContext(Dispatchers.Main) {
                 for (entry in savedEntries) {

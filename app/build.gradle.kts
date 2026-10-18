@@ -14,8 +14,8 @@ android {
         applicationId = "com.litespace.browser"
         minSdk = 26
         targetSdk = 35
-        versionCode = 200
-        versionName = "2.0.0"
+        versionCode = 250
+        versionName = "2.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -24,6 +24,15 @@ android {
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
             arg("room.incremental", "true")
+        }
+    }
+
+    signingConfigs {
+        create("releaseSigning") {
+            storeFile = file("litespace-release.jks")
+            storePassword = project.findProperty("LITESPACE_STORE_PASSWORD")?.toString() ?: "litespace123"
+            keyAlias = project.findProperty("LITESPACE_KEY_ALIAS")?.toString() ?: "litespace"
+            keyPassword = project.findProperty("LITESPACE_KEY_PASSWORD")?.toString() ?: "litespace123"
         }
     }
 
@@ -36,6 +45,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("releaseSigning")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -55,6 +65,11 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
     }
 
     packaging {

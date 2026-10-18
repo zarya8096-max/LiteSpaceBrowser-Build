@@ -1,7 +1,9 @@
 package com.litespace.browser.ui.theme
 
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -37,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +49,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -63,6 +67,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.litespace.browser.core.shortcut.ShortcutPinManager
 import com.litespace.browser.domain.model.AppThemeMode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -80,9 +86,9 @@ private val LightColors = lightColorScheme(
     tertiaryContainer = Color(0xFFF3E5F5),
     onTertiaryContainer = Color(0xFF310047),
     background = Color(0xFFF4F7FC),
-    onBackground = Color(0xFF111827),
+    onBackground = Color(0xFF0F172A),
     surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF111827),
+    onSurface = Color(0xFF0F172A),
     surfaceVariant = Color(0xFFE6ECF5),
     onSurfaceVariant = Color(0xFF475569)
 )
@@ -100,9 +106,9 @@ private val DarkColors = darkColorScheme(
     onTertiary = Color(0xFF490066),
     tertiaryContainer = Color(0xFF63197E),
     onTertiaryContainer = Color(0xFFF3E5F5),
-    background = Color(0xFF0B0F17),
+    background = Color(0xFF090D16),
     onBackground = Color(0xFFF1F5F9),
-    surface = Color(0xFF131A27),
+    surface = Color(0xFF111827),
     onSurface = Color(0xFFF1F5F9),
     surfaceVariant = Color(0xFF1E293B),
     onSurfaceVariant = Color(0xFF94A3B8)
@@ -110,8 +116,8 @@ private val DarkColors = darkColorScheme(
 
 private val AmoledColors = DarkColors.copy(
     background = Color(0xFF000000),
-    surface = Color(0xFF080B11),
-    surfaceVariant = Color(0xFF141B26)
+    surface = Color(0xFF070A10),
+    surfaceVariant = Color(0xFF121824)
 )
 
 private val LiteSpaceTypography = Typography(
@@ -152,19 +158,39 @@ private val LiteSpaceTypography = Typography(
     )
 )
 
+private val SquircleShape = RoundedCornerShape(percent = 28)
+private val MicroChipShape = RoundedCornerShape(8.dp)
+private val TileShape = RoundedCornerShape(16.dp)
+
 fun parseHexColorSafely(hex: String, fallback: Color = Color(0xFF0B57D0)): Color {
+    if (hex.isBlank()) return fallback
     return runCatching {
-        Color(android.graphics.Color.parseColor(hex))
+        Color(android.graphics.Color.parseColor(hex.trim()))
     }.getOrDefault(fallback)
 }
 
+/**
+ * Crucial Crash-Prevention Wrapper:
+ * Wrapping `base` in `ContextWrapper(base)` preserves the `ComponentActivity` /
+ * `ActivityResultRegistryOwner` chain and Activity `Window` token so
+ * `rememberLauncherForActivityResult`, `ModalBottomSheet`, and `AlertDialog` never crash!
+ */
+private class ActivityPreservingLocaleContextWrapper(
+    base: Context,
+    private val localizedResources: Resources
+) : ContextWrapper(base) {
+    override fun getResources(): Resources = localizedResources
+}
+
 fun applyLocaleToContext(base: Context, languageCode: String): Context {
-    val locale = Locale(languageCode.lowercase())
+    val targetLang = languageCode.lowercase().trim().ifBlank { "en" }
+    val locale = Locale(targetLang)
     Locale.setDefault(locale)
     val config = Configuration(base.resources.configuration)
     config.setLocale(locale)
     config.setLayoutDirection(locale)
-    return base.createConfigurationContext(config)
+    val configContext = base.createConfigurationContext(config)
+    return ActivityPreservingLocaleContextWrapper(base, configContext.resources)
 }
 
 @Composable
@@ -187,23 +213,27 @@ fun LiteSpaceTheme(
         AppThemeMode.DARK, AppThemeMode.AMOLED -> true
     }
 
-    val baseScheme: ColorScheme = when {
-        themeMode == AppThemeMode.AMOLED -> AmoledColors
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            if (useDark) dynamicDarkColorScheme(baseContext) else dynamicLightColorScheme(baseContext)
+    val baseScheme: ColorScheme = remember(themeMode, dynamicColor, useDark, baseContext) {
+        when {
+            themeMode == AppThemeMode.AMOLED -> AmoledColors
+            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                if (useDark) dynamicDarkColorScheme(baseContext) else dynamicLightColorScheme(baseContext)
+            }
+            useDark -> DarkColors
+            else -> LightColors
         }
-        useDark -> DarkColors
-        else -> LightColors
     }
 
-    val finalScheme = if (!customSeedHex.isNullOrBlank()) {
-        val accent = parseHexColorSafely(customSeedHex, baseScheme.primary)
-        baseScheme.copy(
-            primary = accent,
-            primaryContainer = accent.copy(alpha = if (useDark) 0.28f else 0.16f)
-        )
-    } else {
-        baseScheme
+    val finalScheme = remember(baseScheme, customSeedHex, useDark) {
+        if (!customSeedHex.isNullOrBlank()) {
+            val accent = parseHexColorSafely(customSeedHex, baseScheme.primary)
+            baseScheme.copy(
+                primary = accent,
+                primaryContainer = accent.copy(alpha = if (useDark) 0.28f else 0.16f)
+            )
+        } else {
+            baseScheme
+        }
     }
 
     val layoutDirection = if (languageCode.lowercase().startsWith("fa") ||
@@ -226,6 +256,12 @@ fun LiteSpaceTheme(
     }
 }
 
+/**
+ * 120fps Optimized Squircle Icon:
+ * - Memoizes color parsing & gradient brush per `colorHex`
+ * - Decodes `customIconUri` asynchronously on `Dispatchers.IO` via `produceState`
+ *   so scrolling and typing never block the Main UI thread!
+ */
 @Composable
 fun LiteAppSquircleIcon(
     iconText: String,
@@ -235,65 +271,71 @@ fun LiteAppSquircleIcon(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val baseColor = parseHexColorSafely(colorHex)
-    val shape = RoundedCornerShape(percent = 28)
-
-    val customBitmap = remember(customIconUri, iconText, colorHex) {
-        if (!customIconUri.isNullOrBlank()) {
-            runCatching {
-                ShortcutPinManager.renderLiteAppIconBitmap(
-                    context = context,
-                    iconText = iconText,
-                    colorHex = colorHex,
-                    customIconUri = customIconUri,
-                    sizePx = 160
-                ).asImageBitmap()
-            }.getOrNull()
-        } else {
-            null
-        }
-    }
-
-    if (customBitmap != null) {
-        Image(
-            bitmap = customBitmap,
-            contentDescription = iconText,
-            modifier = modifier
-                .size(size)
-                .shadow(4.dp, shape)
-                .clip(shape)
-                .border(1.dp, Color.White.copy(alpha = 0.25f), shape)
-        )
-    } else {
-        val gradientBrush = Brush.linearGradient(
+    val gradientBrush = remember(colorHex) {
+        val baseColor = parseHexColorSafely(colorHex)
+        Brush.linearGradient(
             colors = listOf(
                 baseColor.copy(
-                    red = (baseColor.red * 1.18f).coerceAtMost(1f),
-                    green = (baseColor.green * 1.18f).coerceAtMost(1f),
-                    blue = (baseColor.blue * 1.18f).coerceAtMost(1f)
+                    red = (baseColor.red * 1.18f).coerceIn(0f, 1f),
+                    green = (baseColor.green * 1.18f).coerceIn(0f, 1f),
+                    blue = (baseColor.blue * 1.18f).coerceIn(0f, 1f)
                 ),
                 baseColor,
                 baseColor.copy(
-                    red = baseColor.red * 0.72f,
-                    green = baseColor.green * 0.72f,
-                    blue = baseColor.blue * 0.72f
+                    red = (baseColor.red * 0.72f).coerceIn(0f, 1f),
+                    green = (baseColor.green * 0.72f).coerceIn(0f, 1f),
+                    blue = (baseColor.blue * 0.72f).coerceIn(0f, 1f)
                 )
             ),
             start = Offset.Zero,
             end = Offset(120f, 120f)
         )
+    }
 
+    val customBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = customIconUri) {
+        value = if (!customIconUri.isNullOrBlank()) {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    ShortcutPinManager.renderLiteAppIconBitmap(
+                        context = context.applicationContext,
+                        iconText = iconText,
+                        colorHex = colorHex,
+                        customIconUri = customIconUri,
+                        sizePx = 144
+                    ).asImageBitmap()
+                }.getOrNull()
+            }
+        } else {
+            null
+        }
+    }
+
+    val bmp = customBitmap
+    if (bmp != null) {
+        Image(
+            bitmap = bmp,
+            contentDescription = iconText,
+            modifier = modifier
+                .size(size)
+                .shadow(4.dp, SquircleShape)
+                .clip(SquircleShape)
+                .border(1.dp, Color.White.copy(alpha = 0.25f), SquircleShape)
+        )
+    } else {
+        val displayLabel = remember(iconText) {
+            iconText.trim().take(2).uppercase().ifBlank { "LA" }
+        }
         Box(
             modifier = modifier
                 .size(size)
-                .shadow(4.dp, shape)
-                .clip(shape)
+                .shadow(4.dp, SquircleShape)
+                .clip(SquircleShape)
                 .background(gradientBrush)
-                .border(1.dp, Color.White.copy(alpha = 0.28f), shape),
+                .border(1.dp, Color.White.copy(alpha = 0.28f), SquircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = iconText.trim().take(2).uppercase().ifBlank { "LA" },
+                text = displayLabel,
                 color = Color.White,
                 style = if (size >= 56.dp) {
                     MaterialTheme.typography.titleLarge
@@ -314,7 +356,7 @@ fun FeatureMicroChip(
 ) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(MicroChipShape)
             .background(containerColor)
             .padding(horizontal = 7.dp, vertical = 2.dp)
     ) {
@@ -351,9 +393,9 @@ fun QuickControlGridTile(
     Surface(
         color = bg,
         contentColor = fg,
-        shape = RoundedCornerShape(16.dp),
+        shape = TileShape,
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(TileShape)
             .clickable { onClick() }
     ) {
         Row(

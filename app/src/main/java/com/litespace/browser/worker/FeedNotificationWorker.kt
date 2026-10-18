@@ -1,6 +1,7 @@
 package com.litespace.browser.worker
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -79,7 +80,7 @@ class FeedNotificationWorker(
             connectTimeout = 10_000
             readTimeout = 10_000
             requestMethod = "GET"
-            setRequestProperty("User-Agent", "LiteSpaceBrowser-FeedMonitor/2.0")
+            setRequestProperty("User-Agent", "LiteSpaceBrowser-FeedMonitor/2.5")
         }
         return try {
             if (connection.responseCode !in 200..299) return null
@@ -151,6 +152,7 @@ class FeedNotificationWorker(
             }
         }
 
+        @SuppressLint("MissingPermission")
         fun postFeedNotification(
             context: Context,
             liteAppId: Long,

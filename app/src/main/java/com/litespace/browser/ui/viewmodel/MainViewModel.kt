@@ -11,6 +11,7 @@ import com.litespace.browser.domain.model.ContentFilterRule
 import com.litespace.browser.domain.model.GlobalAppSettings
 import com.litespace.browser.domain.model.LiteAppCategory
 import com.litespace.browser.domain.model.LiteAppConfig
+import com.litespace.browser.domain.model.SearchEnginePreset
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +31,19 @@ class MainViewModel(
 
     private val _selectedCategory = MutableStateFlow<LiteAppCategory?>(null)
     val selectedCategory: StateFlow<LiteAppCategory?> = _selectedCategory.asStateFlow()
+
+    private val _pendingSharedUrl = MutableStateFlow<String?>(null)
+    val pendingSharedUrl: StateFlow<String?> = _pendingSharedUrl.asStateFlow()
+
+    fun onSharedUrlReceived(url: String?) {
+        if (!url.isNullOrBlank()) {
+            _pendingSharedUrl.value = url.trim()
+        }
+    }
+
+    fun consumeSharedUrl() {
+        _pendingSharedUrl.value = null
+    }
 
     private val _statusBannerMessage = MutableStateFlow<String?>(null)
     val statusBannerMessage: StateFlow<String?> = _statusBannerMessage.asStateFlow()
@@ -153,6 +167,24 @@ class MainViewModel(
 
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch { repository.preferencesRepository.updateDynamicColor(enabled) }
+    }
+
+    fun setSearchEngine(engine: SearchEnginePreset) {
+        viewModelScope.launch { repository.preferencesRepository.updateSearchEngine(engine) }
+    }
+
+    fun exportSingleAppManifest(app: LiteAppConfig): String {
+        return repository.exportSingleLiteAppJson(app)
+    }
+
+    fun importSingleAppManifest(rawJson: String) {
+        viewModelScope.launch {
+            repository.importSingleLiteAppJson(rawJson).onSuccess {
+                _statusBannerMessage.value = "Imported Lite App manifest successfully"
+            }.onFailure { err ->
+                _statusBannerMessage.value = "Invalid Lite App JSON: ${err.localizedMessage}"
+            }
+        }
     }
 
     fun setLanguageCode(lang: String) {

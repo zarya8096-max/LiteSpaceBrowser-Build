@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
@@ -85,7 +86,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.litespace.browser.domain.model.CatalogTemplates
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -147,12 +149,15 @@ fun LiteAppBrowserScreen(
     var findQuery by remember { mutableStateOf("") }
     var showZoomSheet by remember { mutableStateOf(false) }
     var showBookmarksSheet by remember { mutableStateOf(false) }
+    var showHistorySheet by remember { mutableStateOf(false) }
     var showLiveScriptDialog by remember { mutableStateOf(false) }
+    var showCookieInspectorDialog by remember { mutableStateOf(false) }
 
     var fullscreenVideoView by remember { mutableStateOf<View?>(null) }
     var fullscreenVideoCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
 
     val bookmarks by repository.observeBookmarks(activeConfig.id).collectAsState(initial = emptyList())
+    val historyItems by repository.observeHistory(activeConfig.id).collectAsState(initial = emptyList())
     val isCurrentPageBookmarked = bookmarks.any { it.url == currentUrl }
 
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -163,12 +168,19 @@ fun LiteAppBrowserScreen(
             contentBlockerEngine = contentBlockerEngine,
             profileIsolationManager = profileIsolationManager,
             onPageStateChanged = { url, title, loading, progress, back, forward ->
-                if (url.isNotBlank()) currentUrl = url
-                if (title.isNotBlank()) currentTitle = title
-                isLoading = loading
-                loadProgress = progress
-                canGoBack = back
-                canGoForward = forward
+                if (url.isNotBlank() && url != currentUrl) currentUrl = url
+                if (title.isNotBlank() && title != currentTitle) currentTitle = title
+                if (loading != isLoading) isLoading = loading
+                if (kotlin.math.abs(progress - loadProgress) >= 5 || progress >= 99) {
+                    loadProgress = progress
+                }
+                if (back != canGoBack) canGoBack = back
+                if (forward != canGoForward) canGoForward = forward
+            },
+            onPageVisitedForHistory = { visitedTitle, visitedUrl ->
+                scope.launch {
+                    repository.recordHistoryVisit(activeConfig.id, visitedTitle, visitedUrl)
+                }
             },
             onBlockedRequestHit = { matchedPattern, _ ->
                 sessionBlockedCount += 1
@@ -731,20 +743,46 @@ fun LiteAppBrowserScreen(
                     )
                 }
 
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    QuickControlGridTile(
+                        icon = Icons.Default.History,
+                        title = "Browsing History",
+                        subtitle = "${historyItems.size} entries",
+                        onClick = {
+                            showControlCenterSheet = false
+                            showHistorySheet = true
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    QuickControlGridTile(
+                        icon = Icons.Default.DeleteSweep,
+                        title = stringResource(R.string.browser_clear_session),
+                        subtitle = "Wipe session",
+                        onClick = {
+                            showControlCenterSheet = false
+                            profileIsolationManager.clearSessionData(
+                                webView = webViewRef,
+                                clearCache = true,
+                                clearCookies = true,
+                                clearStorage = true,
+                                isIncognito = true
+                            )
+                            webViewRef?.reload()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 QuickControlGridTile(
-                    icon = Icons.Default.DeleteSweep,
-                    title = stringResource(R.string.browser_clear_session),
-                    subtitle = "Clear cookies, DOM storage & cache for current session",
+                    icon = Icons.Default.Security,
+                    title = "Cookie & Vault Inspector",
+                    subtitle = "Profile: ${activeConfig.profileId} • Inspect live domain cookies",
+                    isActive = true,
                     onClick = {
                         showControlCenterSheet = false
-                        profileIsolationManager.clearSessionData(
-                            webView = webViewRef,
-                            clearCache = true,
-                            clearCookies = true,
-                            clearStorage = true,
-                            isIncognito = true
-                        )
-                        webViewRef?.reload()
+                        showCookieInspectorDialog = true
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -836,6 +874,118 @@ fun LiteAppBrowserScreen(
                 Spacer(Modifier.height(16.dp))
             }
         }
+    }
+
+    if (showHistorySheet) {
+        ModalBottomSheet(onDismissRequest = { showHistorySheet = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "History (${activeConfig.name})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (historyItems.isNotEmpty()) {
+                        TextButton(
+                            onClick = {
+                                scope.launch { repository.clearHistoryForApp(activeConfig.id) }
+                            }
+                        ) {
+                            Text("Clear All")
+                        }
+                    }
+                }
+                if (historyItems.isEmpty()) {
+                    Text("No history recorded for this Lite App.")
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(historyItems, key = { it.id }) { item ->
+                            Surface(
+                                onClick = {
+                                    showHistorySheet = false
+                                    webViewRef?.loadUrl(item.url)
+                                },
+                                shape = MaterialTheme.shapes.medium,
+                                tonalElevation = 2.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                    Text(
+                                        item.url,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+    }
+
+    if (showCookieInspectorDialog) {
+        val rawCookieStr = remember(currentUrl, showCookieInspectorDialog) {
+            runCatching { CookieManager.getInstance().getCookie(currentUrl).orEmpty() }.getOrDefault("")
+        }
+        val cookiePairs = remember(rawCookieStr) {
+            rawCookieStr.split(";").map { it.trim() }.filter { it.isNotEmpty() }
+        }
+        AlertDialog(
+            onDismissRequest = { showCookieInspectorDialog = false },
+            title = { Text("Cookie & Storage Vault (${activeConfig.profileId})") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Origin: $currentUrl",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (cookiePairs.isEmpty()) {
+                            "Zero cookies stored for this domain in profile '${activeConfig.profileId}'."
+                        } else {
+                            "Active Cookies (${cookiePairs.size}):\n" + cookiePairs.joinToString("\n• ", prefix = "• ")
+                        },
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        profileIsolationManager.clearSessionData(
+                            webView = webViewRef,
+                            clearCache = false,
+                            clearCookies = true,
+                            clearStorage = true,
+                            isIncognito = false
+                        )
+                        showCookieInspectorDialog = false
+                        webViewRef?.reload()
+                    }
+                ) {
+                    Text("Wipe Domain Cookies")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCookieInspectorDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 
     if (showLiveScriptDialog) {

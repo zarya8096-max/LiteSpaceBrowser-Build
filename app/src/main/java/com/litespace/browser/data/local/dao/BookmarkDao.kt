@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.litespace.browser.data.local.entity.BookmarkEntity
+import com.litespace.browser.data.local.entity.HistoryEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -26,4 +27,13 @@ interface BookmarkDao {
 
     @Query("DELETE FROM bookmarks WHERE liteAppId = :liteAppId")
     suspend fun deleteBookmarksForApp(liteAppId: Long)
+
+    @Query("SELECT * FROM browsing_history WHERE liteAppId = :liteAppId ORDER BY visitedAt DESC LIMIT 100")
+    fun observeHistoryForApp(liteAppId: Long): Flow<List<HistoryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHistoryEntry(entry: HistoryEntity): Long
+
+    @Query("DELETE FROM browsing_history WHERE liteAppId = :liteAppId")
+    suspend fun clearHistoryForApp(liteAppId: Long)
 }

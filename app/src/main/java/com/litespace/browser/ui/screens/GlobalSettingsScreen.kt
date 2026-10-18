@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.litespace.browser.R
 import com.litespace.browser.domain.model.AppThemeMode
 import com.litespace.browser.domain.model.GlobalAppSettings
+import com.litespace.browser.domain.model.SearchEnginePreset
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -42,6 +43,7 @@ fun GlobalSettingsScreen(
     onSelectThemeMode: (AppThemeMode) -> Unit,
     onToggleDynamicColor: (Boolean) -> Unit,
     onSelectLanguage: (String) -> Unit,
+    onSelectSearchEngine: (SearchEnginePreset) -> Unit = {},
     onToggleBiometricGlobal: (Boolean) -> Unit,
     onUpdatePinCode: (String) -> Unit
 ) {
@@ -89,6 +91,28 @@ fun GlobalSettingsScreen(
                         checked = settings.dynamicColorEnabled,
                         onCheckedChange = onToggleDynamicColor
                     )
+                }
+            }
+
+            Card(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = if (isPersian) "موتور جستجوی پیش‌فرض نوار آدرس" else "Default Omnibox Search Engine",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SearchEnginePreset.entries.forEach { engine ->
+                            FilterChip(
+                                selected = settings.searchEngine == engine,
+                                onClick = { onSelectSearchEngine(engine) },
+                                label = { Text(if (isPersian) engine.labelFa else engine.labelEn) }
+                            )
+                        }
+                    }
                 }
             }
 
